@@ -1,0 +1,4 @@
+# Orgs that tag bounties with the plain "Bounty" label instead of 💎 Bounty.
+# These are queried per-org (a global "Bounty" search is drowned out by unrelated
+# security bug-bounty repos). Keep this list short.
+tenstorrent        # Python/C++ · uses "Bounty" label · cycles (14 open earlier, 0 now)

@@ -1,0 +1,41 @@
+# Orgs to EXCLUDE from bounty alerts. The monitor now alerts on ALL open
+# 💎 Bounty issues globally EXCEPT the orgs listed here (denylist model).
+# One GitHub org per line. Inline "#" comments allowed. Case-insensitive.
+#
+# To RECEIVE alerts from any org below, just delete (or comment out) its line
+# and re-seed: `bash scripts/check_bounties.sh` then commit seen.json.
+
+# --- Anonymous high-volume bounty FARMS ---------------------------------
+# Real algora-pbc[bot] bounties, BUT: accounts created ~May 2026, no website,
+# hundreds of issues, claimed near-instantly, payout reliability unverified.
+# These three alone are ~73% of the entire global 💎 Bounty pool. Watching
+# them = flooded with bounties you can't realistically win. Toggle on at your
+# own risk if you want to try the high-volume grind.
+ClankerNation
+UnsafeLabs
+SecureBananaLabs
+
+# --- Obvious test / playground / throwaway repos -------------------------
+xevrion-v2          # agent-playground: "Calculate PI", "Add JSDoc" — test
+sudhakarbaghel      # repo "test", issues "dfs"/"dsfv" — junk
+ApexOpsStudio       # ai-gitops-test-target — CI test fixture
+Bu1ldTh3Futur3      # bounty-hunter-test — test repo
+
+# --- Numeric / gibberish org names (spam) -------------------------------
+192600
+18605041367
+ccgjjnsvatk
+kolotikwoan
+organization2025
+gerderanvogdsde5587
+ylc8037
+xeymxmkf
+
+# --- Personal test orgs -------------------------------------------------
+CaravanaCloud     # your own throwaway test repos (8 stale bounty issues)
+
+# --- Merit Systems demo/test repos (keep the real Merit bounties, drop demos) -
+MeritDemos        # official Merit demo org ("API rate limiting" x N)
+zdql              # calbot "Do Nothing" — Merit test
+mitchm11          # my-repo "My div won't center" — Merit test
+alvaroechevarriacuesta  # m-bot/sync-test "Hello" — Merit test
