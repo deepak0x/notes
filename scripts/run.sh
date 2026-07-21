@@ -21,27 +21,33 @@ echo "Denylist (excluded): $(echo "$deny_json" | jq -r 'join(", ")')" >&2
 
 current_raw="$(mktemp)"; : > "$current_raw"
 
-MAX_COMMENTS=25   # triage: skip overcrowded (highly-contested) threads
-
 # Filter a `gh search issues --json ...` payload (on stdin) to EVERY org EXCEPT
-# the denylisted ones, and TRIAGE to only grabbable issues: not a PR, unassigned,
-# and not overcrowded. $1 = source/platform tag carried through to the email.
+# the denylisted ones, and TRIAGE to only fresh, grabbable issues: not a PR,
+# unassigned, and with ZERO comments (nobody has applied/attempted yet — for
+# GrantFox a comment == an application, so 0 comments = an open shot).
+# $1 = source/platform tag. For GrantFox we also build the portal `apply` link
+# (contribute.grantfox.xyz/org/<org>/repo/<repo>/issue/<num>) — applying there is
+# required to actually get assigned (a raw GitHub comment does not win).
 # (isPullRequest/assignees/commentsCount come free from the search JSON — no
 # extra API calls.)
 emit_filtered() {
-  jq -c --argjson deny "$deny_json" --arg src "${1:-}" --argjson maxc "$MAX_COMMENTS" '
+  jq -c --argjson deny "$deny_json" --arg src "${1:-}" '
     .[]
-    | (.repository.nameWithOwner | split("/")[0] | ascii_downcase) as $o
+    | (.repository.nameWithOwner | split("/")) as $rp
+    | ($rp[0] | ascii_downcase) as $o
     | select($deny | index($o) | not)
     | select((.isPullRequest // false) | not)      # not a PR
     | select((.assignees // []) | length == 0)      # nobody claimed it yet
-    | select((.commentsCount // 0) <= $maxc)        # not an overcrowded pile-on
+    | select((.commentsCount // 0) == 0)            # 0 comments only — freshest, no applicants
     | ([.labels[].name]) as $L
     | { id: (.repository.nameWithOwner + "#" + (.number|tostring)),
         title: .title, url: .url,
         amount: ([$L[] | select(startswith("$"))] | join(" ")),
         source: $src,
         comments: (.commentsCount // 0),
+        apply: (if $src == "GrantFox"
+                then "https://contribute.grantfox.xyz/org/" + $rp[0] + "/repo/" + $rp[1] + "/issue/" + (.number|tostring)
+                else "" end),
         rewarded: (if ($L | map(ascii_downcase) | any(test("maybe rewarded"))) then "maybe" else "" end) }'
 }
 
@@ -150,11 +156,12 @@ echo "new_count=$new_count"
 
 # Human-readable email body for the send step.
 {
-  echo "New grabbable bounties (unassigned, no PR, not overcrowded):"
+  echo "New fresh bounties (0 comments, unassigned, no PR):"
   echo
-  jq -r '.[] | "• [\(.source // "?")] \(.amount // "") \(.id)  (\(.comments // 0) comments)\n  \(.title)\(if .rewarded=="maybe" then "  (reward NOT guaranteed — GrantFox campaign)" else "" end)\n  \(.url)\n"' new.json
+  jq -r '.[] | "• [\(.source // "?")] \(.amount // "") \(.id)\n  \(.title)\(if .rewarded=="maybe" then "  (reward NOT guaranteed — GrantFox campaign)" else "" end)\n  \(.url)\(if (.apply // "") != "" then "\n  APPLY (required): \(.apply)" else "" end)\n"' new.json
   echo "— bounty-monitor. Algora/Merit = claim fast (comment /attempt or /claim)."
-  echo "  GrantFox = Stellar ecosystem, reward not guaranteed; verify on grantfox.xyz."
+  echo "  GrantFox = you MUST apply via the portal APPLY link (a raw GitHub comment"
+  echo "  does not win); Stellar ecosystem, reward not guaranteed."
   echo "  [text] = keyword-matched (may be noisier); verify it's a real bounty."
 } > message.txt
 
