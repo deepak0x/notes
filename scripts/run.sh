@@ -21,24 +21,33 @@ echo "Denylist (excluded): $(echo "$deny_json" | jq -r 'join(", ")')" >&2
 
 current_raw="$(mktemp)"; : > "$current_raw"
 
+# Max comments allowed for the label platforms (Algora/Merit/IssueHunt/text).
+# NOT applied to GrantFox: there a comment == an application, so GrantFox requires
+# 0 comments. For Algora/Merit the reward bot comments on nearly every bounty, so
+# a 0-comment rule would wrongly exclude ~all of them — hence a moderate cap here,
+# with the real "grabbable" gate being unassigned + no-PR. Tune freely.
+LABEL_MAX_COMMENTS=5
+
 # Filter a `gh search issues --json ...` payload (on stdin) to EVERY org EXCEPT
 # the denylisted ones, and TRIAGE to only fresh, grabbable issues: not a PR,
-# unassigned, and with ZERO comments (nobody has applied/attempted yet — for
-# GrantFox a comment == an application, so 0 comments = an open shot).
+# unassigned, and within the per-source comment threshold (GrantFox: 0; others:
+# LABEL_MAX_COMMENTS).
 # $1 = source/platform tag. For GrantFox we also build the portal `apply` link
 # (contribute.grantfox.xyz/org/<org>/repo/<repo>/issue/<num>) — applying there is
 # required to actually get assigned (a raw GitHub comment does not win).
 # (isPullRequest/assignees/commentsCount come free from the search JSON — no
 # extra API calls.)
 emit_filtered() {
-  jq -c --argjson deny "$deny_json" --arg src "${1:-}" '
+  jq -c --argjson deny "$deny_json" --arg src "${1:-}" --argjson lmax "$LABEL_MAX_COMMENTS" '
     .[]
     | (.repository.nameWithOwner | split("/")) as $rp
     | ($rp[0] | ascii_downcase) as $o
     | select($deny | index($o) | not)
     | select((.isPullRequest // false) | not)      # not a PR
     | select((.assignees // []) | length == 0)      # nobody claimed it yet
-    | select((.commentsCount // 0) == 0)            # 0 comments only — freshest, no applicants
+    # GrantFox: 0 comments (comment == application). Others: <= LABEL_MAX_COMMENTS.
+    | select(if $src == "GrantFox" then (.commentsCount // 0) == 0
+             else (.commentsCount // 0) <= $lmax end)
     | ([.labels[].name]) as $L
     | { id: (.repository.nameWithOwner + "#" + (.number|tostring)),
         title: .title, url: .url,
@@ -156,7 +165,7 @@ echo "new_count=$new_count"
 
 # Human-readable email body for the send step.
 {
-  echo "New fresh bounties (0 comments, unassigned, no PR):"
+  echo "New fresh bounties (unassigned, no PR; GrantFox = 0 comments):"
   echo
   jq -r '.[] | "• [\(.source // "?")] \(.amount // "") \(.id)\n  \(.title)\(if .rewarded=="maybe" then "  (reward NOT guaranteed — GrantFox campaign)" else "" end)\n  \(.url)\(if (.apply // "") != "" then "\n  APPLY (required): \(.apply)" else "" end)\n"' new.json
   echo "— bounty-monitor. Algora/Merit = claim fast (comment /attempt or /claim)."
